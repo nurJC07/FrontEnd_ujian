@@ -5,10 +5,7 @@ import {
     AUTH_LOADING,
     LOGOUT,
     COOKIE_CHECKED,
-    SELECT_PRODUK,
-    EDIT_CART,
-    ADD_CART  
-    
+    SELECT_PRODUK,    
 }from './types'
 
 export const onUserRegister =({username, email, phone, password, confirm}) => {
@@ -99,12 +96,7 @@ var loginYok = (dispatch,username,password) => {
        }
    } 
 
-   export const editClick = () =>{
-    return {type : EDIT_CART}
-}
-export const addCart = () =>{
-    return {type : ADD_CART}
-}
+
     
 
    

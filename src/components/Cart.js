@@ -2,114 +2,164 @@ import React, { Component } from 'react';
 import axios from 'axios';
 import { connect } from 'react-redux';
 
-import { Table,Input } from 'reactstrap';
-
-
 class Cart extends Component {
-    state = {listCart : []}
+    state = {listCart : [], selectedIdEdit: 0, totalPrice: 0}
 
-    componentDidMount(){
-      this.renderListCart()
-    }
-  
-    renderListCart = () => {
-      axios.get('http://localhost:3001/cart' , {
-        params : {
-          username : this.props.username
-        }
-      })
-      .then((res) => {
-        console.log(res)
-        this.setState({listCart : res.data})
-      })
-      var listJsx = this.state.listCart.map((item) => {
-        
-          return(
-          
-            <tr>
-              <th><img src={item.img} width="50px" alt={item.id}/></th>
-              <td>{item.nama}</td>
-              <td>{item.harga}</td>
-              <td >{item.qty}</td>
-              <td >{item.total}</td>
-            </tr>
-        )
-       
-      })
-  
-      return listJsx;
-    }
+    componentDidMount() {
+      this.getCartList();
+  }
 
-        
-  onCheckOut = () => {
+  getCartList = () => {
+      axios.get('http://localhost:3001/cart', {
+          params: {
+              username: this.props.username
+          }
+      }).then((res) => {
+          var price = 0;
+          res.data.forEach(element => {
+              price += (element.quantity * element.harga);
+          });
+          this.setState({ listCart: res.data, selectedIdEdit: 0, totalPrice: price })
+      }).catch((err) => {
+          console.log(err)
+      })
+  }
 
-    axios.post('http://localhost:3001/history', {
-      username : this.props.username,
-      order : this.state.listJsx
-    })
-    .then((res) => {
-      console.log(res)
-      for(let i = 0 ; i < this.state.listJsx.length ; i ++){
-        axios.delete('http://localhost:3001/cart/' + this.state.listJsx[i].id    
-        ).then((res) => {
-          console.log(res)     
-          this.renderListCart()      
-        })
+  onBtnSaveClick = (item) => {
+      var quantity = parseInt(this.refs.quantityEdit.value);
+
+      axios.put('http://localhost:3001/cart/' + item.id, {
+          ...item, quantity
+      }).then((res) => {
+          this.getCartList();
+      }).catch((err) => {
+          console.log(err);
+      })
+  }
+
+  onBtnDeleteClick = (id) => {
+      if(window.confirm('Yakin nih bro?')) {
+          axios.delete('http://localhost:3001/cart/' + id)
+          .then((res) => {
+              this.getCartList();
+          }).catch((err) => {
+              console.log(err);
+          })
       }
-    })
   }
 
-  renderTotalHarga = () => {
-    var ttl = 0
-    for(let i = 0; i < this.state.listCart.length ; i++){
-      ttl += this.state.listCart[i].total
-    }
-    return(
-      <div className='col-2'>
-      <h3>Rp. {ttl}</h3>
-       <Input className="btn-primary" type='button' value='CHECKOUT' onClick ={this.onCheckOut}/>
-      </div>
-    )
+  onBtnCheckoutClick = () => {
+      if(window.confirm('Are you sure to Checkout?')) {
+          axios.post('http://localhost:3001/transaksi', {
+              username: this.props.username,
+              tglTransaksi: new Date(),
+              totalPrice: this.state.totalPrice,
+              totalItem: this.state.listCart.length
+          }).then((res) => {
+              this.state.listCart.forEach((item) => {
+                  axios.post('http://localhost:3001/transaksiItem', {
+                      transaksiId: res.data.id,
+                      produkId: item.produkId,
+                      nama: item.nama,
+                      harga: item.harga,
+                      img: item.img,
+                      quantity: item.quantity
+                  }).then((res) => {
+                      console.log('add success' + item.produkId)
+                  }).catch((err) => {
+                      console.log(err)
+                  })
+                  axios.delete('http://localhost:3001/cart/' + item.id)
+                          .then((res) => {
+                              console.log('delete success' + item.produkId)
+                              this.getCartList();
+                          }).catch((err) => {
+                              console.log(err)
+                          })
+              })
+          }).catch((err) => {
+              console.log(err)
+          })
+      }
   }
 
-      render() {
-                if(this.props.username !== undefined) {
-                    return (
-                        <div>
-                            <center>
-                            <div>
-                                <h1>Cart</h1>
-                            </div>
-                            <Table>
-                            <thead>
-                                <tr>
-                                    <th>Id</th>
-                                    <th>Nama</th>
-                                    <th>Harga</th>
-                                    <th>Qty</th>
-                                    <th>Total Harga</th>
-                                    <th></th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            {this.renderListCart()}
-                            </tbody>
-                            
-                            </Table>
-                            <div className ="Row">
-                            {this.renderTotalHarga()}
-                            </div>
-                            
-                            </center>
-                        </div>        
-                    )         
-            
-                
-              }
-    }
-    
+  renderBodyProduk = () => {
+      var listJSXProduk = this.state.listCart.map((item) => {
+          if(item.id !== this.state.selectedIdEdit) {
+              return (
+                  <tr key={item.id}>
+                      <td>{item.id}</td>
+                      <td>{item.nama}</td>
+                      <td><img src={item.img} width="50px" alt={item.id} /></td>
+                      <td>Rp. {item.harga}</td>
+                      <td>{item.quantity}</td>
+                      <td>Rp. {item.harga * item.quantity}</td>
+                      <td><input className="btn btn-primary" type="button" value="Edit" onClick={() => this.setState({ selectedIdEdit: item.id })} /></td>
+                      <td><input className="btn btn-danger" type="button" value="Remove" onClick={() => this.onBtnDeleteClick(item.id)} /></td>
+                  </tr> )
+          }
+          
+          return (
+              <tr key={item.id}>
+                  <td>{item.id}</td>
+                  <td>
+                      {item.nama}
+                  </td>
+                  <td><img src={item.img} width="50px" alt={item.id} /></td>
+                  <td>Rp. {item.harga}</td>
+                  <td>
+                      <input
+                          type="number"
+                          ref="quantityEdit"
+                          defaultValue={item.quantity}
+                      />
+                  </td>
+                  <td>Rp. {item.harga * item.quantity}</td>
+                  <td><input className="btn btn-primary" type="button" value="Save" onClick={() => this.onBtnSaveClick(item)} /></td>
+                  <td><input className="btn btn-danger" type="button" value="Cancel" onClick={() => this.setState({ selectedIdEdit: 0 })} /></td>
+              </tr> )
+          
+      })
+      return listJSXProduk;
   }
+
+  render() {
+      return (
+          <div className="container-fluid">
+              <div className="row">
+                  <div className="col-lg-12 text-center">
+                      <h1 className="section-heading text-uppercase">Cart</h1>
+                  </div>
+              </div>
+              <center>
+                  <table>
+                      <thead>
+                          <tr>
+                              <th>Id</th>
+                              <th>Nama</th>
+                              <th>Image</th>
+                              <th>Harga</th>
+                              <th>Quantity</th>
+                              <th>Total Harga</th>
+                              <th></th>
+                              <th></th>
+                          </tr>
+                      </thead>
+                      <tbody>
+                          {this.renderBodyProduk()}
+                      </tbody>
+                  </table>
+                  <div>
+                      <h2>Total Price : Rp. {this.state.totalPrice}</h2>
+                  </div>
+                  <div className="col-4">
+                      <input type="button" className="btn btn-success" value="Checkout" onClick={this.onBtnCheckoutClick} />
+                  </div>
+              </center>
+          </div>
+      );
+  }
+}
 
 const mapStateToProps = (state) => {
   return{
